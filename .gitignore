@@ -1,3 +1,6 @@
-PEMS04/
-data/PEMS04/*.npz
-data/PEMS04/*.csv
+/PEMS04/
+/data/PEMS04/*.npz
+/data/PEMS04/*.csv
+!/data/
+!/data/PEMS04/
+!/data/PEMS04/.gitkeep
