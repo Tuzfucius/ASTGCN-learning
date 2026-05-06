@@ -87,6 +87,12 @@ experiments/
 - 模型结构保持 ASTGCN 原算法思路不变。
 - 每个模块优先写清楚输入输出形状。
 
+文档总入口见：
+
+```text
+docs/README.md
+```
+
 详细手工复现计划见：
 
 ```text
