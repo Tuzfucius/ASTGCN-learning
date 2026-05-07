@@ -52,6 +52,8 @@ class ASTGCN(nn.Module):
         super().__init__()
         if nb_block <= 0:
             raise ValueError("nb_block 必须大于 0。")
+        if time_strides <= 0:
+            raise ValueError("time_strides 必须大于 0。")
 
         self.nb_block = nb_block
         self.in_channels = in_channels
@@ -77,7 +79,7 @@ class ASTGCN(nn.Module):
             )
         )
 
-        reduced_len_input = len_input // time_strides
+        reduced_len_input = _conv_time_output_length(len_input, time_strides)
         for _ in range(nb_block - 1):
             self.blocks.append(
                 ASTGCNBlock(
@@ -129,3 +131,8 @@ def build_astgcn_model(config: dict[str, Any], cheb_polynomials: list[Any]) -> A
         len_input=task_config["len_input"],
         num_of_vertices=data_config["num_of_vertices"],
     )
+
+
+def _conv_time_output_length(len_input: int, time_strides: int) -> int:
+    """计算 block 中时间卷积后的时间步数。"""
+    return (len_input - 1) // time_strides + 1

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any, Callable
 
 import torch
@@ -51,13 +52,13 @@ def get_loss_function(loss_name: str, missing_value: float) -> Callable[[Any, An
 
 def _build_mask(labels: Any, null_val: float) -> Any:
     """根据缺失值构造有效位置 mask。"""
-    if torch.isnan(torch.tensor(null_val)):
+    if math.isnan(float(null_val)):
         mask = ~torch.isnan(labels)
     else:
         mask = labels != null_val
     mask = mask.float()
     mask_mean = mask.mean()
-    if mask_mean > 0:
+    if mask_mean.item() > 0:
         mask = mask / mask_mean
     return torch.nan_to_num(mask)
 

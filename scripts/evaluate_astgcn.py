@@ -20,6 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="评估 ASTGCN 模型。")
     parser.add_argument("--config", default="configurations/PEMS04_astgcn.yaml", help="配置文件路径。")
     parser.add_argument("--model", required=True, help="模型权重路径。")
+    parser.add_argument("--device", default=None, help="覆盖配置中的评估设备，例如 cpu 或 cuda。")
     return parser.parse_args()
 
 
@@ -27,6 +28,9 @@ def main() -> None:
     """执行测试评估。"""
     args = parse_args()
     config = load_config(args.config)
+    if args.device is not None:
+        config["training"]["device"] = args.device
+
     output_dir = create_experiment_dir(config)
     dataloaders = build_all_dataloaders(config)
 

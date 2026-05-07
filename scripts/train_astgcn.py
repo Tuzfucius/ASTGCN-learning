@@ -21,6 +21,7 @@ def parse_args() -> argparse.Namespace:
     """解析训练参数。"""
     parser = argparse.ArgumentParser(description="训练 ASTGCN 模型。")
     parser.add_argument("--config", default="configurations/PEMS04_astgcn.yaml", help="配置文件路径。")
+    parser.add_argument("--device", default=None, help="覆盖配置中的训练设备，例如 cpu 或 cuda。")
     return parser.parse_args()
 
 
@@ -28,6 +29,9 @@ def main() -> None:
     """执行训练流程。"""
     args = parse_args()
     config = load_config(args.config)
+    if args.device is not None:
+        config["training"]["device"] = args.device
+
     set_seed(config["training"]["seed"])
     output_dir = create_experiment_dir(config)
     save_config_snapshot(config, output_dir)
@@ -54,7 +58,8 @@ def main() -> None:
         device=config["training"]["device"],
     )
     history = trainer.fit(config["training"]["epochs"], config["training"]["start_epoch"])
-    print(f"best_epoch: {history['best_epoch'] + 1}, best_val_loss: {history['best_val_loss']:.6f}")
+    if history["best_epoch"] is not None:
+        print(f"best_epoch: {history['best_epoch'] + 1}, best_val_loss: {history['best_val_loss']:.6f}")
 
 
 if __name__ == "__main__":
