@@ -5,8 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 try:
+    import torch
     from torch import nn
 except ImportError:
+    torch = None
+
     class _FallbackModule:
         """未安装 PyTorch 时的占位基类。"""
 
@@ -47,8 +50,9 @@ class ASTGCN(nn.Module):
         num_of_vertices: int,
     ) -> None:
         super().__init__()
-        # TODO: 根据 nb_block 堆叠 ASTGCNBlock。
-        # TODO: 定义 final convolution，将中间特征映射为未来 num_for_predict 步。
+        if nb_block <= 0:
+            raise ValueError("nb_block 必须大于 0。")
+
         self.nb_block = nb_block
         self.in_channels = in_channels
         self.k = k
@@ -59,22 +63,57 @@ class ASTGCN(nn.Module):
         self.num_for_predict = num_for_predict
         self.len_input = len_input
         self.num_of_vertices = num_of_vertices
+        self.blocks = nn.ModuleList()
+        self.blocks.append(
+            ASTGCNBlock(
+                in_channels=in_channels,
+                k=k,
+                nb_chev_filter=nb_chev_filter,
+                nb_time_filter=nb_time_filter,
+                time_strides=time_strides,
+                cheb_polynomials=cheb_polynomials,
+                num_of_vertices=num_of_vertices,
+                num_of_timesteps=len_input,
+            )
+        )
+
+        reduced_len_input = len_input // time_strides
+        for _ in range(nb_block - 1):
+            self.blocks.append(
+                ASTGCNBlock(
+                    in_channels=nb_time_filter,
+                    k=k,
+                    nb_chev_filter=nb_chev_filter,
+                    nb_time_filter=nb_time_filter,
+                    time_strides=1,
+                    cheb_polynomials=cheb_polynomials,
+                    num_of_vertices=num_of_vertices,
+                    num_of_timesteps=reduced_len_input,
+                )
+            )
+
+        self.final_conv = nn.Conv2d(reduced_len_input, num_for_predict, kernel_size=(1, nb_time_filter))
+        self.reset_parameters()
 
     def forward(self, x: Any) -> Any:
         """执行完整模型前向传播。"""
-        # TODO: 将 x 依次送入每个 ASTGCNBlock。
-        # TODO: 使用 final convolution 输出 (B, N, T_pred)。
-        raise NotImplementedError("TODO: 实现 ASTGCN.forward。")
+        for block in self.blocks:
+            x = block(x)
+
+        output = self.final_conv(x.permute(0, 3, 1, 2))[:, :, :, -1]
+        return output.permute(0, 2, 1)
+
+    def reset_parameters(self) -> None:
+        """初始化模型参数。"""
+        for parameter in self.parameters():
+            if parameter.dim() > 1:
+                nn.init.xavier_uniform_(parameter)
+            else:
+                nn.init.uniform_(parameter)
 
 
 def build_astgcn_model(config: dict[str, Any], cheb_polynomials: list[Any]) -> ASTGCN:
-    """根据配置构造 ASTGCN 模型。
-
-    TODO:
-    - 从 config 中取 model/task/data 参数。
-    - 创建 ASTGCN 实例。
-    - 后续可以在这里做参数初始化。
-    """
+    """根据配置构造 ASTGCN 模型。"""
     model_config = config["model"]
     task_config = config["task"]
     data_config = config["data"]
