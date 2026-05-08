@@ -99,6 +99,16 @@ docs/README.md
 docs/手动复现与重构指南.md
 ```
 
+## 运行依赖
+
+最小 Python 依赖见：
+
+```text
+requirements.txt
+```
+
+其中 PyTorch 的安装方式可能和 CUDA 版本有关。如果目标机器需要 GPU 训练，建议先按 PyTorch 官方说明安装匹配 CUDA 的 `torch`，再安装其余依赖。
+
 ## 数据集与 git 规则
 
 数据集文件通常体积较大，因此不进入 git。

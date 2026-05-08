@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import argparse
 
+import torch
+
 from src.data.dataset import build_all_dataloaders
 from src.engine.trainer import Trainer
 from src.graph.adjacency import load_adjacency_matrix
 from src.graph.laplacian import chebyshev_polynomials, scaled_laplacian
+from src.metrics.losses import get_loss_function
 from src.models.astgcn import build_astgcn_model
 from src.utils.config import load_config
 from src.utils.logging import create_experiment_dir, save_config_snapshot
@@ -18,24 +21,17 @@ def parse_args() -> argparse.Namespace:
     """解析训练参数。"""
     parser = argparse.ArgumentParser(description="训练 ASTGCN 模型。")
     parser.add_argument("--config", default="configurations/PEMS04_astgcn.yaml", help="配置文件路径。")
+    parser.add_argument("--device", default=None, help="覆盖配置中的训练设备，例如 cpu 或 cuda。")
     return parser.parse_args()
 
 
 def main() -> None:
-    """执行训练流程。
-
-    TODO:
-    - 读取配置。
-    - 固定随机种子。
-    - 创建实验目录。
-    - 加载 DataLoader。
-    - 构造图结构和 Chebyshev 多项式。
-    - 构造 ASTGCN 模型。
-    - 构造 optimizer 和 loss_fn。
-    - 创建 Trainer 并调用 fit。
-    """
+    """执行训练流程。"""
     args = parse_args()
     config = load_config(args.config)
+    if args.device is not None:
+        config["training"]["device"] = args.device
+
     set_seed(config["training"]["seed"])
     output_dir = create_experiment_dir(config)
     save_config_snapshot(config, output_dir)
@@ -49,9 +45,8 @@ def main() -> None:
     cheb_polys = chebyshev_polynomials(l_tilde, config["model"]["K"])
     model = build_astgcn_model(config, cheb_polys)
 
-    # TODO: 在这里创建 optimizer 和 loss_fn。
-    optimizer = None
-    loss_fn = None
+    optimizer = torch.optim.Adam(model.parameters(), lr=config["training"]["learning_rate"])
+    loss_fn = get_loss_function(config["training"]["loss_function"], config["training"]["missing_value"])
 
     trainer = Trainer(
         model=model,
@@ -62,7 +57,9 @@ def main() -> None:
         output_dir=output_dir,
         device=config["training"]["device"],
     )
-    trainer.fit(config["training"]["epochs"], config["training"]["start_epoch"])
+    history = trainer.fit(config["training"]["epochs"], config["training"]["start_epoch"])
+    if history["best_epoch"] is not None:
+        print(f"best_epoch: {history['best_epoch'] + 1}, best_val_loss: {history['best_val_loss']:.6f}")
 
 
 if __name__ == "__main__":

@@ -14,6 +14,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 
 def search_data(
     sequence_length: int, # 全部历史数据的长度
@@ -136,39 +138,133 @@ def get_sample_indices(
 def generate_dataset(config: dict[str, Any]) -> dict[str, Any]:
     """根据配置生成 train/val/test 数据。
 
-    TODO:
-    - 读取 `graph_signal_matrix_filename`。
-    - 遍历时间索引，生成全部样本。
-    - 按 60/20/20 划分 train/val/test。
-    - 只保留第 `target_channel` 个特征作为预测目标。
+    第一阶段只保留 `target_channel` 一个特征作为输入和预测目标。
     """
-    graph_signal_matrix_filename = config["graph_signal_matrix_filename"]
-    num_of_weeks = config["num_of_weeks"]
-    num_of_days = config["num_of_days"]
-    num_of_hours = config["num_of_hours"]
-    num_for_predict = config["num_for_predict"]
-    data_seq = np.load(graph_signal_matrix_filename)["data"]  # 形状 (时间切片数量, 传感器数量, 特征数量)
+    data_config = config["data"]
+    task_config = config["task"]
+
+    data_path = Path(data_config["graph_signal_matrix_filename"])
+    if not data_path.exists():
+        raise FileNotFoundError(f"原始数据文件不存在: {data_path}")
+
+    raw_file = np.load(data_path)
+    if "data" not in raw_file:
+        raise KeyError(f"{data_path} 中缺少 data 数组。")
+
+    data_sequence = raw_file["data"]
+    if data_sequence.ndim != 3:
+        raise ValueError(f"原始数据应为 (T, N, F)，实际形状: {data_sequence.shape}")
+
+    num_of_vertices = int(data_config["num_of_vertices"])
+    if data_sequence.shape[1] != num_of_vertices:
+        raise ValueError(f"节点数不匹配: 配置为 {num_of_vertices}，数据为 {data_sequence.shape[1]}")
+
+    target_channel = int(task_config["target_channel"])
+    if target_channel < 0 or target_channel >= data_sequence.shape[2]:
+        raise ValueError(f"target_channel 超出范围: {target_channel}")
+
+    data_sequence = data_sequence[:, :, target_channel : target_channel + 1]
     all_samples = []
-    
-    # raise NotImplementedError("TODO: 实现完整数据集生成逻辑。")
+
+    for label_start_idx in range(data_sequence.shape[0]):
+        week_sample, day_sample, hour_sample, target = get_sample_indices(
+            data_sequence=data_sequence,
+            num_of_weeks=int(task_config["num_of_weeks"]),
+            num_of_days=int(task_config["num_of_days"]),
+            num_of_hours=int(task_config["num_of_hours"]),
+            label_start_idx=label_start_idx,
+            num_for_predict=int(task_config["num_for_predict"]),
+            points_per_hour=int(data_config["points_per_hour"]),
+        )
+        if week_sample is None and day_sample is None and hour_sample is None:
+            continue
+
+        sample_parts = []
+        for history_sample in (week_sample, day_sample, hour_sample):
+            if history_sample is not None:
+                sample_parts.append(np.expand_dims(history_sample, axis=0).transpose((0, 2, 3, 1)))
+
+        x = np.concatenate(sample_parts, axis=-1)
+        target = np.expand_dims(target, axis=0).transpose((0, 2, 3, 1))[:, :, 0, :]
+        timestamp = np.array([[label_start_idx]], dtype=np.int64)
+        all_samples.append((x, target, timestamp))
+
+    if not all_samples:
+        raise ValueError("没有生成任何样本，请检查时间窗口配置。")
+
+    x_all, target_all, timestamp_all = [np.concatenate(items, axis=0) for items in zip(*all_samples)]
+
+    expected_len_input = int(task_config["len_input"])
+    if x_all.shape[-1] != expected_len_input:
+        raise ValueError(f"输入时间步不匹配: 配置为 {expected_len_input}，实际为 {x_all.shape[-1]}")
+
+    split_line1 = int(x_all.shape[0] * 0.6)
+    split_line2 = int(x_all.shape[0] * 0.8)
+    if split_line1 == 0 or split_line2 == split_line1 or split_line2 == x_all.shape[0]:
+        raise ValueError(f"样本数量过少，无法按 60/20/20 划分: {x_all.shape[0]}")
+
+    train_x = x_all[:split_line1]
+    val_x = x_all[split_line1:split_line2]
+    test_x = x_all[split_line2:]
+
+    stats, train_x, val_x, test_x = standardize(train_x, val_x, test_x)
+
+    return {
+        "train_x": train_x,
+        "train_target": target_all[:split_line1],
+        "train_timestamp": timestamp_all[:split_line1],
+        "val_x": val_x,
+        "val_target": target_all[split_line1:split_line2],
+        "val_timestamp": timestamp_all[split_line1:split_line2],
+        "test_x": test_x,
+        "test_target": target_all[split_line2:],
+        "test_timestamp": timestamp_all[split_line2:],
+        "mean": stats["mean"],
+        "std": stats["std"],
+    }
 
 
 def standardize(train_x: Any, val_x: Any, test_x: Any) -> tuple[dict[str, Any], Any, Any, Any]:
     """使用训练集统计量标准化输入。
 
-    TODO:
-    - mean 只从 train_x 计算。
-    - std 只从 train_x 计算。
-    - val_x/test_x 必须复用 train_x 的 mean/std。
+    mean/std 的形状为 `(1, 1, F, 1)`，可广播到 `(B, N, F, T)`。
     """
-    raise NotImplementedError("TODO: 实现标准化逻辑。")
+    if train_x.ndim != 4 or val_x.ndim != 4 or test_x.ndim != 4:
+        raise ValueError("train_x、val_x、test_x 都应为 (B, N, F, T)。")
+
+    if train_x.shape[1:] != val_x.shape[1:] or train_x.shape[1:] != test_x.shape[1:]:
+        raise ValueError("train/val/test 的 N、F、T 维度必须一致。")
+
+    mean = train_x.mean(axis=(0, 1, 3), keepdims=True)
+    std = train_x.std(axis=(0, 1, 3), keepdims=True)
+    std = np.where(std == 0, 1.0, std)
+
+    return (
+        {"mean": mean, "std": std},
+        (train_x - mean) / std,
+        (val_x - mean) / std,
+        (test_x - mean) / std,
+    )
 
 
 def save_dataset(dataset: dict[str, Any], output_path: str | Path) -> None:
     """保存预处理后的数据集。
 
-    TODO:
-    - 使用 `np.savez_compressed` 保存。
-    - 保存 train_x、train_target、val_x、val_target、test_x、test_target、mean、std。
+    保存字段与 `docs/数据说明.md` 保持一致。
     """
-    raise NotImplementedError("TODO: 实现预处理数据保存逻辑。")
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        output_path,
+        train_x=dataset["train_x"],
+        train_target=dataset["train_target"],
+        train_timestamp=dataset["train_timestamp"],
+        val_x=dataset["val_x"],
+        val_target=dataset["val_target"],
+        val_timestamp=dataset["val_timestamp"],
+        test_x=dataset["test_x"],
+        test_target=dataset["test_target"],
+        test_timestamp=dataset["test_timestamp"],
+        mean=dataset["mean"],
+        std=dataset["std"],
+    )

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+from pathlib import Path
 
 from src.data.dataset import build_all_dataloaders
 from src.engine.evaluator import Evaluator
@@ -18,22 +20,17 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="评估 ASTGCN 模型。")
     parser.add_argument("--config", default="configurations/PEMS04_astgcn.yaml", help="配置文件路径。")
     parser.add_argument("--model", required=True, help="模型权重路径。")
+    parser.add_argument("--device", default=None, help="覆盖配置中的评估设备，例如 cpu 或 cuda。")
     return parser.parse_args()
 
 
 def main() -> None:
-    """执行测试评估。
-
-    TODO:
-    - 读取配置。
-    - 加载测试 DataLoader。
-    - 构造模型。
-    - 加载权重。
-    - 执行预测。
-    - 计算并保存指标。
-    """
+    """执行测试评估。"""
     args = parse_args()
     config = load_config(args.config)
+    if args.device is not None:
+        config["training"]["device"] = args.device
+
     output_dir = create_experiment_dir(config)
     dataloaders = build_all_dataloaders(config)
 
@@ -53,13 +50,22 @@ def main() -> None:
     )
     evaluator.load_checkpoint(args.model)
     y_true, y_pred = evaluator.predict()
-    evaluator.evaluate(
+    metrics = evaluator.evaluate(
         y_true,
         y_pred,
         config["training"]["metric_method"],
         config["training"]["missing_value"],
     )
-    evaluator.save_predictions(y_true, y_pred)
+    metrics_path = Path(output_dir) / "metrics.json"
+    with metrics_path.open("w", encoding="utf-8") as file:
+        json.dump(metrics, file, ensure_ascii=False, indent=2)
+
+    if config["output"].get("save_predictions", True):
+        evaluator.save_predictions(y_true, y_pred)
+
+    print(f"MAE: {metrics['MAE']:.6f}")
+    print(f"RMSE: {metrics['RMSE']:.6f}")
+    print(f"MAPE: {metrics['MAPE']:.6f}")
 
 
 if __name__ == "__main__":

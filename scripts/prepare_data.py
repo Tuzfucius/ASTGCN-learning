@@ -16,18 +16,21 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    """执行数据预处理。
-
-    TODO:
-    - 读取配置。
-    - 调用 generate_dataset。
-    - 调用 save_dataset。
-    - 打印生成数据的关键形状。
-    """
+    """执行数据预处理。"""
     args = parse_args()
     config = load_config(args.config)
     dataset = generate_dataset(config)
     save_dataset(dataset, config["data"]["processed_dataset_filename"])
+
+    print("数据预处理完成:")
+    print(f"train_x: {dataset['train_x'].shape}")
+    print(f"train_target: {dataset['train_target'].shape}")
+    print(f"val_x: {dataset['val_x'].shape}")
+    print(f"val_target: {dataset['val_target'].shape}")
+    print(f"test_x: {dataset['test_x'].shape}")
+    print(f"test_target: {dataset['test_target'].shape}")
+    print(f"mean: {dataset['mean'].shape}")
+    print(f"std: {dataset['std'].shape}")
 
 
 if __name__ == "__main__":
