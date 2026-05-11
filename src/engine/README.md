@@ -85,8 +85,7 @@ model.eval()
 ```text
 load best checkpoint
   -> predict test set
-  -> inverse standardization if needed
-  -> calculate metrics
+  -> calculate metrics on original target scale
   -> save predictions
 ```
 
@@ -96,3 +95,4 @@ load best checkpoint
 - `Evaluator` 不应修改模型参数。
 - 验证和评估阶段必须使用 `torch.no_grad()`。
 - 保存权重时记录对应 epoch 和验证 loss。
+- 当前阶段只标准化输入 `x`，`target` 保持原始数值；训练 loss、验证 loss 和评估指标不做预测反标准化。

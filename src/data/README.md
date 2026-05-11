@@ -45,6 +45,14 @@ train_x: (B_train, 307, 1, 12)
 train_target: (B_train, 307, 12)
 ```
 
+当前阶段只使用 PEMS04、第 0 个特征和 ASTGCN recent component。`num_of_days`、`num_of_weeks` 保持为 0，`num_of_hours` 至少为 1。
+
+标准化约定：
+
+- 只标准化输入 `x`，使用训练集输入统计量计算 `mean` 和 `std`。
+- `target` 保持原始数值尺度，训练 loss、验证 loss 和评估指标直接对模型输出与 `target` 计算。
+- 预处理后的 `mean`、`std` 只用于记录输入标准化参数，不用于当前阶段的预测反标准化。
+
 ## 变量说明
 
 | 变量 | 含义 |
@@ -62,3 +70,4 @@ train_target: (B_train, 307, 12)
 - 加载阶段不应重新切片原始数据。
 - 标准化统计量只能由训练集计算。
 - 第一阶段只保留第 0 个特征作为输入和目标。
+- 预处理和加载阶段都会校验 `N`、`F`、`T`、`T_pred`、样本数和 batch size，报错信息应能定位到具体字段。

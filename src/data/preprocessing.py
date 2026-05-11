@@ -112,9 +112,14 @@ def generate_dataset(config: dict[str, Any]) -> dict[str, Any]:
     """根据配置生成 train/val/test 数据。
 
     第一阶段只保留 `target_channel` 一个特征作为输入和预测目标。
+    输出约定:
+
+    - `x`: `(B, N, F, T)`，只对输入做标准化。
+    - `target`: `(B, N, T_pred)`，保持原始数值尺度。
     """
     data_config = config["data"]
     task_config = config["task"]
+    _validate_task_config(task_config)
 
     data_path = Path(data_config["graph_signal_matrix_filename"])
     if not data_path.exists():
@@ -134,7 +139,7 @@ def generate_dataset(config: dict[str, Any]) -> dict[str, Any]:
 
     target_channel = int(task_config["target_channel"])
     if target_channel < 0 or target_channel >= data_sequence.shape[2]:
-        raise ValueError(f"target_channel 超出范围: {target_channel}")
+        raise ValueError(f"target_channel 超出范围: 配置为 {target_channel}，原始特征数为 {data_sequence.shape[2]}")
 
     data_sequence = data_sequence[:, :, target_channel : target_channel + 1]
     all_samples = []
@@ -167,9 +172,7 @@ def generate_dataset(config: dict[str, Any]) -> dict[str, Any]:
 
     x_all, target_all, timestamp_all = [np.concatenate(items, axis=0) for items in zip(*all_samples)]
 
-    expected_len_input = int(task_config["len_input"])
-    if x_all.shape[-1] != expected_len_input:
-        raise ValueError(f"输入时间步不匹配: 配置为 {expected_len_input}，实际为 {x_all.shape[-1]}")
+    _validate_generated_shapes(x_all, target_all, data_config, task_config)
 
     split_line1 = int(x_all.shape[0] * 0.6)
     split_line2 = int(x_all.shape[0] * 0.8)
@@ -201,6 +204,7 @@ def standardize(train_x: Any, val_x: Any, test_x: Any) -> tuple[dict[str, Any], 
     """使用训练集统计量标准化输入。
 
     mean/std 的形状为 `(1, 1, F, 1)`，可广播到 `(B, N, F, T)`。
+    目标 `target` 不进入本函数，保持原始数值尺度。
     """
     if train_x.ndim != 4 or val_x.ndim != 4 or test_x.ndim != 4:
         raise ValueError("train_x、val_x、test_x 都应为 (B, N, F, T)。")
@@ -218,6 +222,80 @@ def standardize(train_x: Any, val_x: Any, test_x: Any) -> tuple[dict[str, Any], 
         (val_x - mean) / std,
         (test_x - mean) / std,
     )
+
+
+def _validate_task_config(task_config: dict[str, Any]) -> None:
+    """校验任务配置中会影响数据契约的字段。"""
+    num_for_predict = int(task_config["num_for_predict"])
+    len_input = int(task_config["len_input"])
+    in_channels = int(task_config["in_channels"])
+    num_of_hours = int(task_config["num_of_hours"])
+    num_of_days = int(task_config["num_of_days"])
+    num_of_weeks = int(task_config["num_of_weeks"])
+
+    if num_for_predict <= 0:
+        raise ValueError(f"num_for_predict 必须大于 0，实际为 {num_for_predict}")
+    if len_input <= 0:
+        raise ValueError(f"len_input 必须大于 0，实际为 {len_input}")
+    if in_channels != 1:
+        raise ValueError(f"第一阶段只保留 target_channel 一个特征，in_channels 应为 1，实际为 {in_channels}")
+
+    for name, value in (
+        ("num_of_hours", num_of_hours),
+        ("num_of_days", num_of_days),
+        ("num_of_weeks", num_of_weeks),
+    ):
+        if value < 0:
+            raise ValueError(f"{name} 不能为负数，实际为 {value}")
+
+    dependency_count = num_of_hours + num_of_days + num_of_weeks
+    if dependency_count <= 0:
+        raise ValueError("num_of_hours、num_of_days、num_of_weeks 至少一个必须大于 0。")
+
+    expected_len_input = num_for_predict * dependency_count
+    if len_input != expected_len_input:
+        raise ValueError(
+            "len_input 与依赖窗口不一致: "
+            f"len_input={len_input}, num_for_predict={num_for_predict}, "
+            f"依赖数量合计={dependency_count}, 期望 len_input={expected_len_input}"
+        )
+
+
+def _validate_generated_shapes(
+    x_all: Any,
+    target_all: Any,
+    data_config: dict[str, Any],
+    task_config: dict[str, Any],
+) -> None:
+    """校验预处理生成的输入和目标形状。"""
+    expected_shape = (
+        int(data_config["num_of_vertices"]),
+        int(task_config["in_channels"]),
+        int(task_config["len_input"]),
+    )
+    if x_all.ndim != 4:
+        raise ValueError(f"x 应为 (B, N, F, T)，实际形状: {x_all.shape}")
+    if x_all.shape[1:] != expected_shape:
+        raise ValueError(
+            "x 形状与配置不一致: "
+            f"实际 N/F/T={x_all.shape[1:]}, "
+            f"配置 N/F/T={expected_shape}"
+        )
+
+    expected_target_shape = (
+        int(data_config["num_of_vertices"]),
+        int(task_config["num_for_predict"]),
+    )
+    if target_all.ndim != 3:
+        raise ValueError(f"target 应为 (B, N, T_pred)，实际形状: {target_all.shape}")
+    if target_all.shape[1:] != expected_target_shape:
+        raise ValueError(
+            "target 形状与配置不一致: "
+            f"实际 N/T_pred={target_all.shape[1:]}, "
+            f"配置 N/T_pred={expected_target_shape}"
+        )
+    if x_all.shape[0] != target_all.shape[0]:
+        raise ValueError(f"x 与 target 样本数不一致: x={x_all.shape[0]}, target={target_all.shape[0]}")
 
 
 def save_dataset(dataset: dict[str, Any], output_path: str | Path) -> None:
