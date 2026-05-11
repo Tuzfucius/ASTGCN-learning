@@ -1,7 +1,4 @@
-/PEMS04/
-/data/PEMS04/*.npz
-/data/PEMS04/*.csv
-!/data/
-!/data/PEMS04/
-!/data/PEMS04/.gitkeep
-a.py
+__pycache__/
+*.py[cod]
+test.ipynb
+experiments/a.py
