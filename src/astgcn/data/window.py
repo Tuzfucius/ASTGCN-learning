@@ -143,3 +143,77 @@ def get_target_data(
 
     y = data[start:end, :, target_dim]  # [pred_len, N]
     return y.T                          # [N, pred_len]
+
+def build_t0_list(
+    num_samples: int,
+    num_recent: int,
+    num_days: int,
+    num_weeks: int,
+    pred_len: int,
+    points_per_day: int = 288,
+):
+    """
+    构造所有合法的 t0。
+
+    :param num_samples: 总时间步数 T
+    :param num_recent: recent 使用的时间步数
+    :param num_days: 使用过去多少天
+    :param num_weeks: 使用过去多少周
+    :param pred_len: 预测长度
+    :param points_per_day: 一天的时间步数
+    :return: 合法 t0 数组
+    """
+    min_t0_recent = num_recent - 1
+    min_t0_daily = num_days * points_per_day - 1
+    min_t0_weekly = num_weeks * 7 * points_per_day - 1
+
+    min_t0 = max(
+        min_t0_recent,
+        min_t0_daily,
+        min_t0_weekly,
+    )
+
+    max_t0 = num_samples - pred_len - 1
+
+    if min_t0 > max_t0:
+        raise ValueError("数据长度不足，无法构造样本")
+
+    return np.arange(min_t0, max_t0 + 1)
+
+def split_t0_list(
+    t0_list: np.ndarray,
+    train_ratio: float = 0.6,
+    val_ratio: float = 0.2,
+):
+    """
+    按时间顺序划分 t0 列表。
+    时间序列任务，随机打乱切分会让训练集看到未来分布，造成数据泄漏。
+    所以数据集划分必须按照时间顺序进行，不能随机打乱。
+
+    :param t0_list: 合法 t0 数组
+    :param train_ratio: 训练集比例
+    :param val_ratio: 验证集比例
+    :return: train_t0, val_t0, test_t0
+    """
+    if t0_list.ndim != 1:
+        raise ValueError("t0_list 必须是一维数组")
+
+    if not 0 < train_ratio < 1:
+        raise ValueError("train_ratio 必须在 0 和 1 之间")
+
+    if not 0 <= val_ratio < 1:
+        raise ValueError("val_ratio 必须在 0 和 1 之间")
+
+    if train_ratio + val_ratio >= 1:
+        raise ValueError("train_ratio + val_ratio 必须小于 1")
+
+    num_samples = len(t0_list)
+
+    train_end = int(num_samples * train_ratio)
+    val_end = int(num_samples * (train_ratio + val_ratio))
+
+    train_t0 = t0_list[:train_end]
+    val_t0 = t0_list[train_end:val_end]
+    test_t0 = t0_list[val_end:]
+
+    return train_t0, val_t0, test_t0
