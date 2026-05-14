@@ -17,7 +17,7 @@ def main():
         num_timesteps=T,
     )
 
-    E = temporal_attention(x)
+    E = temporal_attention(x) # E 是输出，x 是输入，通过模型进行映射
 
     print("E shape:", E.shape)
     print("row sum:", E[0, 0].sum())

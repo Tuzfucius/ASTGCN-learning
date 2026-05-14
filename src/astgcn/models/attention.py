@@ -35,6 +35,7 @@ class TemporalAttention(nn.Module):
         self.in_channels = in_channels
         self.num_timesteps = num_timesteps
 
+        # 定义可学习参数
         self.U1 = nn.Parameter(torch.empty(num_nodes))
         self.U2 = nn.Parameter(torch.empty(in_channels, num_nodes))
         self.U3 = nn.Parameter(torch.empty(in_channels))
@@ -45,6 +46,7 @@ class TemporalAttention(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
+        # 使用 Xavier 初始化方法初始化参数
         nn.init.xavier_uniform_(self.U1.unsqueeze(0))
         nn.init.xavier_uniform_(self.U2)
         nn.init.xavier_uniform_(self.U3.unsqueeze(0))
