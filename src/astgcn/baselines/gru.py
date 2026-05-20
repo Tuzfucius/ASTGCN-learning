@@ -1,4 +1,4 @@
-"""LSTM 基线模型。"""
+"""GRU 基线模型。"""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ import torch
 import torch.nn as nn
 
 
-class LSTMBaseline(nn.Module):
-    """逐节点共享参数的 LSTM 预测基线。
+class GRUBaseline(nn.Module):
+    """逐节点共享参数的 GRU 预测基线。
 
-    模型把每个节点的 recent 时间序列视为一个样本，使用同一套 LSTM 参数预测
-    未来 ``pred_len`` 个时间步。
+    模型把每个节点的 recent 时间序列视为一个样本，使用同一套 GRU 参数预测
+    未来 ``pred_len`` 个时间步。输入输出接口与 ``LSTMBaseline`` 保持一致。
     """
 
     def __init__(
@@ -21,19 +21,19 @@ class LSTMBaseline(nn.Module):
         num_layers: int = 1,
         dropout: float = 0.0,
     ) -> None:
-        """初始化 LSTM 基线。
+        """初始化 GRU 基线。
 
         :param in_channels: 输入特征数 ``F``。
-        :param hidden_size: LSTM 隐状态维度。
+        :param hidden_size: GRU 隐状态维度。
         :param pred_len: 预测长度。
-        :param num_layers: LSTM 层数。
-        :param dropout: LSTM 层间 dropout，单层时自动置为 0。
+        :param num_layers: GRU 层数。
+        :param dropout: GRU 层间 dropout，单层时自动置为 0。
         """
         super().__init__()
         self.in_channels = in_channels
         self.hidden_size = hidden_size
         self.pred_len = pred_len
-        self.lstm = nn.LSTM(
+        self.gru = nn.GRU(
             input_size=in_channels,
             hidden_size=hidden_size,
             num_layers=num_layers,
@@ -54,9 +54,9 @@ class LSTMBaseline(nn.Module):
             raise ValueError(f"输入特征数必须为 {self.in_channels}，实际为 {recent.shape[2]}")
         batch_size, num_nodes, _, num_timesteps = recent.shape
         x = recent.permute(0, 1, 3, 2).reshape(batch_size * num_nodes, num_timesteps, self.in_channels)
-        _, (hidden, _) = self.lstm(x)
+        _, hidden = self.gru(x)
         pred = self.projection(hidden[-1])
         return pred.reshape(batch_size, num_nodes, self.pred_len)
 
 
-__all__ = ["LSTMBaseline"]
+__all__ = ["GRUBaseline"]

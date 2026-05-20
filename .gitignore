@@ -4,3 +4,11 @@ test.ipynb
 experiments/a.py
 a.py
 src/astgcn.egg-info/
+.codegraph/
+.cursor/
+outputs/
+outputs/checkpoints/
+outputs/logs/
+outputs/predictions/
+outputs/figures/
+outputs/comparison/

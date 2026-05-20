@@ -1,191 +1,144 @@
-import pandas as pd
+"""交通图结构构造工具。"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 
-def get_distance_matrix(file_path):
-    """
-    从 CSV 文件中读取距离矩阵，CSV 文件应该包含三列：from, to, cost，分别表示节点 i 到节点 j 的距离
-    :param file_path: CSV 文件的路径
-    """
-    
-    distance = pd.read_csv(file_path)
-    
-    cnt = [0] * len(distance) # 统计每个节点的连接数，初始为0，注意此时 cnt 长度不是节点数量，cnt 长度是边的数量
-    for _, row in distance.iterrows():
-        i = int(row["from"])
-        j = int(row["to"])
-        cnt[i] += 1
-        cnt[j] += 1
-    num_nodes = 0
-    for i in range(len(cnt)):
-        if cnt[i] > 0:
-            num_nodes = i + 1
-            
-    distance_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
 
-    for _, row in distance.iterrows():
-        i = int(row["from"])
-        j = int(row["to"])
+def get_distance_matrix(
+    file_path: str | Path,
+    num_nodes: int | None = None,
+    directed: bool = False,
+) -> np.ndarray:
+    """从 ``distance.csv`` 构造距离矩阵。
+
+    :param file_path: CSV 路径，要求包含 ``from``、``to``、``cost`` 三列。
+    :param num_nodes: 节点数；为空时根据边表最大节点编号推断。
+    :param directed: 是否按有向图处理。默认 ``False``，符合论文无向图设定。
+    :return: 距离矩阵，形状为 ``[N, N]``。
+    """
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"未找到距离文件: {path}")
+
+    edges = pd.read_csv(path)
+    required = {"from", "to", "cost"}
+    if not required.issubset(edges.columns):
+        raise ValueError(f"distance.csv 必须包含列: {sorted(required)}")
+
+    max_node_id = int(max(edges["from"].max(), edges["to"].max()))
+    node_count = num_nodes if num_nodes is not None else max_node_id + 1
+    if node_count <= max_node_id:
+        raise ValueError("num_nodes 小于边表中的最大节点编号")
+
+    distance = np.zeros((node_count, node_count), dtype=np.float32)
+    for _, row in edges.iterrows():
+        src = int(row["from"])
+        dst = int(row["to"])
         cost = float(row["cost"])
+        distance[src, dst] = cost
+        if not directed:
+            distance[dst, src] = cost
+    return distance
 
-        distance_matrix[i, j] = cost
-        distance_matrix[j, i] = cost  # 按无向图处理，双向联通
 
-    return distance_matrix
+def get_adjacency_matrix(distance_matrix: np.ndarray, weighted: bool = False) -> np.ndarray:
+    """根据距离矩阵构造邻接矩阵。
 
-def get_adjacency_matrix(distance_matrix: np.ndarray) -> np.ndarray:
+    :param distance_matrix: 距离矩阵，形状为 ``[N, N]``。
+    :param weighted: 是否保留距离权重。默认 ``False`` 表示只保留连接关系。
+    :return: 邻接矩阵，形状为 ``[N, N]``。
     """
-    根据距离矩阵构造邻接矩阵。
+    if distance_matrix.ndim != 2 or distance_matrix.shape[0] != distance_matrix.shape[1]:
+        raise ValueError("distance_matrix 必须是方阵")
+    if weighted:
+        return distance_matrix.astype(np.float32)
+    return (distance_matrix > 0).astype(np.float32)
 
-    distance_matrix[i, j] > 0 表示节点 i 和节点 j 相连
-    adjacency_matrix[i, j] = 1 表示存在边
-    """
-    adjacency_matrix = (distance_matrix > 0).astype(np.float32)
-    return adjacency_matrix
 
 def get_normalized_laplacian(adj_matrix: np.ndarray) -> np.ndarray:
+    """计算归一化拉普拉斯矩阵 ``L = I - D^{-1/2} A D^{-1/2}``。
+
+    :param adj_matrix: 邻接矩阵，形状为 ``[N, N]``。
+    :return: 归一化拉普拉斯矩阵，形状为 ``[N, N]``。
     """
-    构造归一化拉普拉斯矩阵。
+    if adj_matrix.ndim != 2 or adj_matrix.shape[0] != adj_matrix.shape[1]:
+        raise ValueError("adj_matrix 必须是方阵")
 
-    L = I - D^{-1/2} A D^{-1/2}
-    其中 D 是度矩阵，D[i, i] = sum_j A[i, j]
-    A 是邻接矩阵，I 是单位矩阵
+    degree = adj_matrix.sum(axis=1)
+    d_inv_sqrt = np.zeros_like(degree, dtype=np.float32)
+    mask = degree > 0
+    d_inv_sqrt[mask] = 1.0 / np.sqrt(degree[mask])
+    d_mat = np.diag(d_inv_sqrt)
+    identity = np.eye(adj_matrix.shape[0], dtype=np.float32)
+    return (identity - d_mat @ adj_matrix @ d_mat).astype(np.float32)
 
-    :param adj_matrix: 邻接矩阵，形状为 (num_nodes, num_nodes)
-    :return: 归一化拉普拉斯矩阵，形状为 (num_nodes, num_nodes)
-    """
-    if adj_matrix.ndim != 2:
-        raise ValueError("邻接矩阵必须是二维矩阵")
-
-    if adj_matrix.shape[0] != adj_matrix.shape[1]:
-        raise ValueError("邻接矩阵必须是方阵")
-
-    num_nodes = adj_matrix.shape[0]
-
-    degree = np.sum(adj_matrix, axis=1) # 计算每个节点的度数，即每行的和
-
-    d_inv_sqrt = np.zeros_like(degree, dtype=np.float32) 
-    nonzero_mask = degree > 0
-    d_inv_sqrt[nonzero_mask] = 1.0 / np.sqrt(degree[nonzero_mask]) 
-
-    d_inv_sqrt_matrix = np.diag(d_inv_sqrt) # 构造 D^{-1/2} 的对角矩阵
-
-    identity = np.eye(num_nodes, dtype=np.float32)
-
-    laplacian = identity - d_inv_sqrt_matrix @ adj_matrix @ d_inv_sqrt_matrix
-
-    return laplacian.astype(np.float32)
 
 def get_scaled_laplacian(laplacian: np.ndarray) -> np.ndarray:
+    """计算缩放拉普拉斯矩阵 ``L_tilde = 2L / lambda_max - I``。
+
+    :param laplacian: 归一化拉普拉斯矩阵，形状为 ``[N, N]``。
+    :return: 缩放拉普拉斯矩阵，形状为 ``[N, N]``。
     """
-    构造缩放拉普拉斯矩阵。保证数据都在[-1, 1]
+    if laplacian.ndim != 2 or laplacian.shape[0] != laplacian.shape[1]:
+        raise ValueError("laplacian 必须是方阵")
 
-    L_tilde = 2L / lambda_max - I
-
-    :param laplacian: 归一化拉普拉斯矩阵，形状为 (num_nodes, num_nodes)
-    :return: 缩放拉普拉斯矩阵，形状为 (num_nodes, num_nodes)
-    """
-    if laplacian.ndim != 2:
-        raise ValueError("拉普拉斯矩阵必须是二维矩阵")
-
-    if laplacian.shape[0] != laplacian.shape[1]:
-        raise ValueError("拉普拉斯矩阵必须是方阵")
-
-    num_nodes = laplacian.shape[0]
-
-    lambda_max = np.linalg.eigvals(laplacian).real.max()
-
-    if lambda_max == 0:
+    lambda_max = float(np.linalg.eigvals(laplacian).real.max())
+    if abs(lambda_max) < 1e-8:
         lambda_max = 1.0
+    identity = np.eye(laplacian.shape[0], dtype=np.float32)
+    return (2.0 * laplacian / lambda_max - identity).astype(np.float32)
 
-    identity = np.eye(num_nodes, dtype=np.float32)
 
-    scaled_laplacian = (2.0 * laplacian / lambda_max) - identity
+def get_chebyshev_polynomials(scaled_laplacian: np.ndarray, k_order: int) -> np.ndarray:
+    """生成 Chebyshev 多项式矩阵。
 
-    return scaled_laplacian.astype(np.float32)
-
-def get_chebyshev_polynomials(
-    scaled_laplacian: np.ndarray,
-    k_order: int,
-) -> np.ndarray:
+    :param scaled_laplacian: 缩放拉普拉斯矩阵，形状为 ``[N, N]``。
+    :param k_order: Chebyshev 阶数 ``K``。
+    :return: 多项式矩阵，形状为 ``[K, N, N]``。
     """
-    生成 Chebyshev 多项式矩阵。
-
-    T_0 = I
-    T_1 = L_tilde
-    T_k = 2 * L_tilde * T_{k-1} - T_{k-2}
-
-    :param scaled_laplacian: 缩放拉普拉斯矩阵，形状为 (num_nodes, num_nodes)
-    :param k_order: Chebyshev 阶数 K
-    :return: 形状为 (k_order, num_nodes, num_nodes)
-    """
-    if scaled_laplacian.ndim != 2:
-        raise ValueError("缩放拉普拉斯矩阵必须是二维矩阵")
-
-    if scaled_laplacian.shape[0] != scaled_laplacian.shape[1]:
-        raise ValueError("缩放拉普拉斯矩阵必须是方阵")
-
+    if scaled_laplacian.ndim != 2 or scaled_laplacian.shape[0] != scaled_laplacian.shape[1]:
+        raise ValueError("scaled_laplacian 必须是方阵")
     if k_order <= 0:
         raise ValueError("k_order 必须是正整数")
 
     num_nodes = scaled_laplacian.shape[0]
+    polynomials = [np.eye(num_nodes, dtype=np.float32)]
+    if k_order > 1:
+        polynomials.append(scaled_laplacian.astype(np.float32))
+    for order in range(2, k_order):
+        polynomials.append((2 * scaled_laplacian @ polynomials[-1] - polynomials[-2]).astype(np.float32))
+    return np.stack(polynomials, axis=0).astype(np.float32)
 
-    cheb_polynomials = []
 
-    # T_0 = I
-    cheb_polynomials.append(np.eye(num_nodes, dtype=np.float32))
+def build_graph_data(
+    file_path: str | Path,
+    k_order: int,
+    num_nodes: int | None = None,
+    directed: bool = False,
+    weighted: bool = False,
+) -> dict[str, np.ndarray]:
+    """一次性构造 ASTGCN 所需图数据。
 
-    if k_order == 1:
-        return np.stack(cheb_polynomials, axis=0)
-
-    # T_1 = L_tilde
-    cheb_polynomials.append(scaled_laplacian.astype(np.float32))
-
-    # T_k = 2LT_{k-1} - T_{k-2}
-    for k in range(2, k_order):
-        t_k = (
-            2 * scaled_laplacian @ cheb_polynomials[k - 1]
-            - cheb_polynomials[k - 2]
-        )
-        cheb_polynomials.append(t_k.astype(np.float32))
-
-    return np.stack(cheb_polynomials, axis=0)
-
-def build_graph_data(file_path, k_order):
+    :param file_path: ``distance.csv`` 路径。
+    :param k_order: Chebyshev 阶数。
+    :param num_nodes: 节点数。
+    :param directed: 是否有向图。
+    :param weighted: 邻接矩阵是否保留距离权重。
+    :return: 包含距离矩阵、邻接矩阵、拉普拉斯矩阵和 Chebyshev 多项式的字典。
     """
-    构建图数据。
-
-    :param file_path: 距离矩阵文件路径
-    :param k_order: Chebyshev 阶数 K
-    :return: Chebyshev 多项式矩阵
-    """
-    distance_matrix = get_distance_matrix(file_path)
-    adjacency_matrix = get_adjacency_matrix(distance_matrix)
-    laplacian = get_normalized_laplacian(adjacency_matrix)
-    scaled_laplacian = get_scaled_laplacian(laplacian)
-    chebyshev_polynomials = get_chebyshev_polynomials(scaled_laplacian, k_order)
-
+    distance = get_distance_matrix(file_path, num_nodes=num_nodes, directed=directed)
+    adjacency = get_adjacency_matrix(distance, weighted=weighted)
+    laplacian = get_normalized_laplacian(adjacency)
+    scaled = get_scaled_laplacian(laplacian)
+    cheb = get_chebyshev_polynomials(scaled, k_order)
     return {
-        "distance_matrix": distance_matrix,
-        "adjacency_matrix": adjacency_matrix,
+        "distance_matrix": distance,
+        "adjacency_matrix": adjacency,
         "normalized_laplacian": laplacian,
-        "scaled_laplacian": scaled_laplacian,
-        "chebyshev_polynomials": chebyshev_polynomials,
+        "scaled_laplacian": scaled,
+        "chebyshev_polynomials": cheb,
     }
-
-
-if __name__ == "__main__":
-    distance_matrix = get_distance_matrix("data/raw/PEMS04/distance.csv")
-    adjacency_matrix = get_adjacency_matrix(distance_matrix)
-    laplacian = get_normalized_laplacian(adjacency_matrix)
-    scaled_laplacian = get_scaled_laplacian(laplacian)
-    cheb = get_chebyshev_polynomials(scaled_laplacian, k_order=3)
-    
-    print("Distance Matrix:\n", distance_matrix)
-    print("Adjacency Matrix:\n", adjacency_matrix)
-    print("Normalized Laplacian:\n", laplacian)
-    print("Scaled Laplacian:\n", scaled_laplacian)
-    print("Chebyshev Polynomials:\n", cheb)    
-
-    print(cheb.shape)
-    print(cheb.dtype)
-    print(np.isnan(cheb).any())
