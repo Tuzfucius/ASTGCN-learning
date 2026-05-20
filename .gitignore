@@ -10,3 +10,4 @@ outputs/checkpoints/
 outputs/logs/
 outputs/predictions/
 outputs/figures/
+outputs/comparison/
