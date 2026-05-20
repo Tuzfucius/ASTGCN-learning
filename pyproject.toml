@@ -12,6 +12,10 @@ dependencies = [
   "numpy",
   "PyYAML",
   "torch",
+  "pandas",
+  "matplotlib",
+  "tqdm",
+  "scikit-learn",
 ]
 
 [tool.setuptools]
