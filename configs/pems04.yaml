@@ -1,0 +1,51 @@
+dataset:
+  name: PEMS04
+  data_path: data/raw/PEMS04/pems04.npz
+  distance_path: data/raw/PEMS04/distance.csv
+  num_nodes: 307
+  input_dim: 3
+  target_dim: 0
+  points_per_day: 288
+
+time_window:
+  pred_len: 12
+  recent_len: 12
+  daily_days: 1
+  weekly_weeks: 1
+
+split:
+  train_ratio: 0.6
+  val_ratio: 0.2
+
+graph:
+  directed: false
+  weighted: false
+  cheb_order: 3
+
+model:
+  num_blocks: 2
+  in_channels: 3
+  hidden_channels: 64
+  cheb_channels: 64
+  time_channels: 64
+  time_kernel_size: 3
+  dropout: 0.0
+
+train:
+  batch_size: 32
+  epochs: 50
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  optimizer: Adam
+  loss: mae
+  device: auto
+  num_workers: 0
+  seed: 42
+  early_stop_patience: 10
+  grad_clip: 5.0
+
+log:
+  save_dir: outputs
+  checkpoint_dir: outputs/checkpoints
+  log_dir: outputs/logs
+  prediction_dir: outputs/predictions
