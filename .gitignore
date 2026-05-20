@@ -4,3 +4,5 @@ test.ipynb
 experiments/a.py
 a.py
 src/astgcn.egg-info/
+.codegraph/
+.cursor/
