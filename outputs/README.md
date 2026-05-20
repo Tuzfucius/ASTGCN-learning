@@ -1,22 +1,31 @@
 # outputs 目录说明
 
-本目录用于保存实验输出，不建议提交大体积模型权重、预测数组或图片结果到版本库，除非它们是报告必须引用的小文件。
+本目录保存实验输出。大体积模型权重、预测数组、日志和图像默认不提交到版本库。
 
-## 建议子目录
+## 子目录
 
-- `checkpoints/`：保存训练 checkpoint。
-- `logs/`：保存训练日志。
-- `predictions/`：保存预测值、真实值和指标文件。
-- `figures/`：保存可视化图片。
+- `checkpoints/`：训练 checkpoint。
+- `logs/`：训练、推理和对比脚本日志。
+- `predictions/`：推理预测结果。
+- `figures/`：普通可视化图像。
+- `comparison/`：baseline 性能对比结果。
 
-## Kaggle notebook 输出
+## baseline 对比输出
 
-`scripts/kaggle_astgcn_pems04_training.ipynb` 默认会写入：
+运行：
 
-```text
-outputs/checkpoints/kaggle_astgcn_best.pt
-outputs/predictions/kaggle_astgcn_predictions.npz
-outputs/figures/
+```powershell
+python scripts\compare_baselines.py --config configs\pems04.yaml --epochs 1 --max-batches 1 --svr-samples 64 --device cpu
 ```
 
-这些文件用于复盘训练过程、绘制预测曲线和分析 recent/daily/weekly 融合权重。
+会生成：
+
+```text
+outputs/comparison/baseline_metrics.csv
+outputs/comparison/baseline_metrics.json
+outputs/comparison/metrics_bar.png
+outputs/comparison/sample_prediction.png
+outputs/comparison/baseline_predictions.npz
+```
+
+其中 `baseline_metrics.csv` 适合写入实验报告，`sample_prediction.png` 用于直观比较不同模型在同一节点上的预测曲线。

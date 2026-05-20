@@ -1,33 +1,23 @@
 # data 目录说明
 
-本目录负责 PEMS04 数据读取、时间窗口构造、标准化、DataLoader 和图结构处理，是 ASTGCN 实验最容易出错的部分。
+本目录负责 PEMS04 数据读取、时间窗口构造、标准化、DataLoader 和图结构处理。
 
-## 主要文件
+## 主要模块
 
-- `io.py`：读取 `.npz` 时序数据，期望输出形状为 `[T, N, F]`。
-- `window.py`：根据时间点 `t0` 构造 recent、daily、weekly 和 target 片段。
-- `dataset.py`：把窗口逻辑封装为 PyTorch `Dataset`。
-- `dataloader.py`：按时间顺序切分 train/val/test，并返回 DataLoader 与 scaler。
-- `scaler.py`：标准化与目标维度反标准化。
-- `graph.py`：读取 `distance.csv`，构造邻接矩阵、归一化拉普拉斯矩阵和 Chebyshev 多项式。
+- `io.py`：读取 `pems04.npz`，返回 `[T, N, F]`。
+- `window.py`：构造 recent、daily、weekly 和 target 时间片段。
+- `dataset.py`：封装 `ASTGCNDataset`，单样本输出 `[N, F, T]` 输入和 `[N, T_p]` 目标。
+- `dataloader.py`：构建 train/val/test DataLoader，并只用训练时间段 fit scaler。
+- `scaler.py`：标准化和目标通道反标准化。
+- `graph.py`：根据 `distance.csv` 构造邻接矩阵、拉普拉斯矩阵和 Chebyshev 多项式。
 
-## 数据文件要求
-
-PEMS04 原始数据默认放在：
+## 当前 shape
 
 ```text
-data/raw/PEMS04/pems04.npz
-data/raw/PEMS04/distance.csv
+raw data: [T, N, F]
+single sample recent/daily/weekly: [N, F, T]
+batch recent/daily/weekly: [B, N, F, T]
+target: [B, N, T_p]
 ```
 
-其中 `pems04.npz` 应包含三维数组 `[时间步, 节点数, 特征数]`，`distance.csv` 应包含 `from,to,cost` 三列。
-
-## 常用检查命令
-
-```bash
-python tests/check4_io.py
-python tests/check5_real_dataset.py
-python tests/check6_dataloader.py
-```
-
-标准化只能使用训练时间段拟合，不能用全量数据拟合，否则会产生数据泄漏。
+最终评估必须先反标准化目标通道，再计算 MAE、RMSE、MAPE。

@@ -1,37 +1,34 @@
 # astgcn 包说明
 
-`astgcn` 是项目的核心包，目标是按模块复现 ASTGCN 在 PEMS04 交通预测任务中的主要流程。
+`astgcn` 是项目核心包，按模块复现 PEMS04 交通流预测流程。
 
 ## 子目录职责
 
-- `data/`：读取 PEMS04 数据、构造 recent/daily/weekly 时间片段、标准化数据、构建 DataLoader 和图结构。
-- `models/`：放置 ASTGCN 相关网络层、注意力模块、时空块、三分支组件和融合层。
-- `engine/`：放置训练、验证、测试、预测和 checkpoint 管理逻辑。
-- `baselines/`：放置 Historical Average、LSTM 等对比模型。
+- `data/`：读取 PEMS04 数据，构造 recent/daily/weekly 时间片段，标准化数据，构建 DataLoader 和图结构。
+- `models/`：实现 ASTGCN 注意力层、Chebyshev 图卷积、STBlock、三分支组件和融合层。
+- `engine/`：实现训练、验证、测试、预测保存和 checkpoint 管理。
+- `baselines/`：实现 HA、SVR、LSTM、GRU 对比模型。
 
 ## 顶层模块
 
-- `utils.py`：配置读取、目录创建、随机种子和设备选择等通用函数。
-- `metrics.py`：预留指标函数，如 MAE、RMSE、MAPE。
-- `losses.py`：预留损失函数封装。
-- `logger.py`：预留日志工具。
+- `utils.py`：配置读取、目录创建、随机种子和设备选择。
+- `metrics.py`：MAE、RMSE、MAPE 及 mask 版本。
+- `losses.py`：训练损失选择器。
+- `logger.py`：控制台和文件日志工具。
 
-## 维度约定
+## 统一接口
 
-当前数据集样本返回：
+深度模型和 HA baseline 的前向接口统一为：
 
-```text
-recent: [T, N, F]
-daily:  [T, N, F]
-weekly: [T, N, F]
-target: [N, Tp]
+```python
+model(recent, daily, weekly, return_components=False)
 ```
 
-加入 batch 后：
+其中 `recent/daily/weekly` 的形状为 `[B, N, F, T]`，输出为 `[B, N, T_p]`。
 
-```text
-recent: [B, T, N, F]
-target: [B, N, Tp]
+`SVRBaseline` 是 scikit-learn 适配器，使用：
+
+```python
+model.fit_loader(train_loader)
+prediction = model.predict_batch(batch)
 ```
-
-模型内部如果需要论文常用的 `[B, N, F, T]`，应在 `forward()` 中显式转换，并在注释或文档中写清楚。

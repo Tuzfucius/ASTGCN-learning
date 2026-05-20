@@ -1,26 +1,18 @@
 # engine 目录说明
 
-本目录用于放置训练、验证、评估、预测和 checkpoint 管理代码。它连接 `data/` 和 `models/`，但不应承担数据窗口或网络层的具体实现。
+本目录保存训练、评估、预测和 checkpoint 管理逻辑。
 
-## 主要文件
+## 主要模块
 
-- `trainer.py`：预留训练循环，包括 train one epoch、validate、early stopping 和日志记录。
-- `evaluator.py`：预留测试集评估逻辑。
-- `predictor.py`：预留推理与预测结果保存逻辑。
-- `checkpoint.py`：预留模型权重、优化器状态、配置和 scaler 的保存加载逻辑。
+- `trainer.py`：训练循环、验证循环、早停和最优 checkpoint 保存。
+- `evaluator.py`：在测试集上评估模型，并在反标准化后计算指标。
+- `predictor.py`：保存预测值、真实值、时间索引和可选分支预测。
+- `checkpoint.py`：保存和加载模型参数、优化器状态、配置和 scaler 参数。
 
-## 推荐训练流程
+## 使用原则
 
-```text
-读取配置
-构建 DataLoader 和 scaler
-构建图结构和模型
-循环训练并在验证集评估
-保存验证集最优 checkpoint
-在测试集反标准化后计算指标
-保存预测结果和图表
-```
+- 训练阶段可在标准化空间计算 loss。
+- 最终 MAE、RMSE、MAPE 必须在反标准化后的真实交通流量尺度上计算。
+- 运行产物写入 `outputs/` 下的子目录，不直接提交到版本库。
 
-## 指标要求
-
-最终 MAE、RMSE、MAPE 应在反标准化后的真实交通流量尺度上计算。标准化空间中的指标只能用于调试，不适合作为最终报告结果。
+baseline 对比脚本复用本目录中的训练和评估思想，但为了统一 HA、SVR 和深度模型，也包含了少量脚本级适配逻辑。

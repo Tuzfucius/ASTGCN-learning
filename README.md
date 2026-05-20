@@ -1,23 +1,31 @@
 # ASTGCN PEMS04 教学复现
 
-本项目是对论文 **Attention Based Spatial-Temporal Graph Convolutional Networks for Traffic Flow Forecasting** 中 ASTGCN 模型的教学型 PyTorch 实现。代码按软件包方式组织，重点是把数据窗口、图结构、模型组件、训练评估和云端 notebook 分开，便于阅读、调试和课程报告撰写。
+本项目是对论文 **Attention Based Spatial-Temporal Graph Convolutional Networks for Traffic Flow Forecasting** 中 ASTGCN 模型的教学型 PyTorch 实现。当前代码已经形成可运行的软件包结构，覆盖数据处理、图结构构建、三分支 ASTGCN、训练评估、常用 baseline 对比、Kaggle notebook 和可视化输出。
 
 ## 项目结构
 
 ```text
-configs/              训练配置
+configs/              PEMS04 训练与对比配置
 data/raw/PEMS04/      PEMS04 原始数据和距离文件
 docs/                 论文 PDF 等资料
-scripts/              本地训练、推理和 Kaggle notebook
-src/astgcn/data/      数据读取、窗口构造、标准化、图结构
+scripts/              训练、推理、baseline 对比和 Kaggle notebook
+src/astgcn/data/      数据读取、窗口构造、标准化、DataLoader、图结构
 src/astgcn/models/    ASTGCN 注意力、图卷积、STBlock、三分支融合模型
 src/astgcn/engine/    训练、评估、预测和 checkpoint
-src/astgcn/baselines/ HA 与 LSTM baseline
-tests/                shape、数据链路和模型前向测试
-outputs/              运行输出目录，生成产物不进入 git
+src/astgcn/baselines/ HA、SVR、LSTM、GRU baseline
+tests/                shape、baseline、模型前向和数据链路测试
+outputs/              运行输出目录，生成产物默认不进入 git
 ```
 
-每个主要目录下都有 `README.md`，说明该目录的职责和常用入口。
+## 当前功能状态
+
+- 已实现 ASTGCN recent / daily / weekly 三组件预测与可学习融合。
+- 已实现 HA、SVR、LSTM、GRU baseline。
+- 已提供统一性能对比脚本，输出 MAE、RMSE、MAPE 表格和可视化图。
+- 已提供 Kaggle notebook，支持云端运行、性能对比和单节点预测曲线展示。
+- 已补充目录级中文 README，说明各目录职责和常用命令。
+
+论文中的 ARIMA、VAR、STGCN、GLU-STGCN、GeoMAN 暂未在本轮实现，后续可作为扩展 baseline。
 
 ## 核心张量约定
 
@@ -41,7 +49,7 @@ outputs/              运行输出目录，生成产物不进入 git
 
 模型输出固定为 `[B, N, T_p]`。
 
-## 本地环境
+## 环境安装
 
 建议使用 conda 环境：
 
@@ -52,18 +60,12 @@ pip install -e .
 pip install -r requirements.txt
 ```
 
-## 训练与推理
+## 训练、推理与对比
 
 最小 smoke 训练：
 
 ```powershell
 python scripts\train.py --config configs\pems04.yaml --epochs 1 --max-batches 1
-```
-
-完整训练：
-
-```powershell
-python scripts\train.py --config configs\pems04.yaml
 ```
 
 推理评估：
@@ -72,38 +74,40 @@ python scripts\train.py --config configs\pems04.yaml
 python scripts\infer.py --config configs\pems04.yaml --checkpoint outputs\checkpoints\best.pt --save-components
 ```
 
-生成的 checkpoint、日志和预测结果分别写入：
+baseline 性能对比：
 
-- `outputs/checkpoints/`
-- `outputs/logs/`
-- `outputs/predictions/`
+```powershell
+python scripts\compare_baselines.py --config configs\pems04.yaml --epochs 1 --max-batches 1 --svr-samples 64 --device cpu
+```
 
-这些运行产物已在 `.gitignore` 中忽略。
+对比结果输出到：
 
-## Kaggle 训练
+- `outputs/comparison/baseline_metrics.csv`
+- `outputs/comparison/baseline_metrics.json`
+- `outputs/comparison/metrics_bar.png`
+- `outputs/comparison/sample_prediction.png`
+- `outputs/comparison/baseline_predictions.npz`
 
-云端训练入口为：
+## Kaggle Notebook
+
+云端入口：
 
 ```text
 scripts/kaggle_astgcn_pems04_training.ipynb
 ```
 
-notebook 面向 Kaggle/Ubuntu 环境，会自动定位项目根目录和 PEMS04 数据目录，并复用当前 `src/astgcn` 软件包完成训练、评估和分支预测可视化。
+notebook 会自动定位项目根目录和 PEMS04 数据文件，运行同一套 baseline 对比逻辑，并展示：
 
-## 验证
+- 指标表格
+- MAE / RMSE / MAPE 柱状图
+- `target / HA / SVR / LSTM / GRU / ASTGCN` 单节点预测曲线
 
-常用验证命令：
+## 验证命令
 
 ```powershell
 python -m compileall -q src scripts tests
 python -m pytest tests -q
-python tests\check1_window_graph.py
-python tests\check2_graph.py
-python tests\check3_dataset.py
-python tests\check4_io.py
-python tests\check5_real_dataset.py
-python tests\check6_dataloader.py
-python tests\check7_attention.py
+python scripts\compare_baselines.py --config configs\pems04.yaml --epochs 1 --max-batches 1 --svr-samples 64 --device cpu
 ```
 
-当前实现已覆盖数据窗口、图结构、三组件 ASTGCN 前向、baseline shape、训练 smoke、推理 smoke 和 notebook JSON/代码单元语法校验。
+当前实现已通过数据窗口、图结构、baseline、三组件 ASTGCN 前向、训练 smoke、推理 smoke、baseline 对比脚本和 notebook 语法校验。

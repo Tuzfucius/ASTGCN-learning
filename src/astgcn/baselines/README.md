@@ -1,19 +1,28 @@
 # baselines 目录说明
 
-本目录用于放置对比方法。baseline 的作用是判断 ASTGCN 是否确实优于简单统计方法、传统机器学习方法或常见深度学习序列模型。
+本目录保存对比模型。baseline 用于判断 ASTGCN 是否优于简单统计方法、传统机器学习方法和常见深度学习序列模型。
 
-## 当前文件
+## 当前实现
 
-- `historical_average.py`：预留 Historical Average 方法。
-- `lstm.py`：预留 LSTM baseline。
+- `historical_average.py`：Historical Average，使用 recent 输入中目标特征的历史均值预测未来。
+- `svr.py`：SVR，按节点级样本展开 recent 特征，并使用多输出 SVR 预测未来窗口。
+- `lstm.py`：LSTM，逐节点共享参数的序列模型。
+- `gru.py`：GRU，逐节点共享参数的序列模型。
 
-## 建议补充的 baseline
+所有可直接前向的 baseline 均接收 `recent [B, N, F, T]`，输出 `[B, N, T_p]`。`SVRBaseline` 不是 `nn.Module`，需要先调用 `fit_loader()`，再调用 `predict_batch()`。
 
-- Historical Average：使用历史相同时段平均值作为预测。
-- Last Value：直接复制最近一个观测值，作为很强的简单基线。
-- LSTM/GRU：按节点或全局序列建模。
-- SVR/RandomForest：可在抽样节点或聚合特征上做传统机器学习对比。
+## 当前对比范围
 
-## 实验原则
+本轮实现的性能对比范围为：
 
-baseline 与 ASTGCN 应使用相同的数据切分、预测长度和评估指标。评估时同样要先反标准化，再计算 MAE、RMSE 和 MAPE。
+```text
+HA / SVR / LSTM / GRU / ASTGCN
+```
+
+论文中还出现 ARIMA、VAR、STGCN、GLU-STGCN、GeoMAN 等模型。这些模型暂未实现，后续可作为扩展工作加入。
+
+## 评估原则
+
+- 所有模型使用相同数据切分、预测长度和指标。
+- 最终 MAE、RMSE、MAPE 均在反标准化后的真实交通流量尺度上计算。
+- SVR 默认使用抽样训练，避免 PEMS04 全节点全样本展开导致训练过慢。
