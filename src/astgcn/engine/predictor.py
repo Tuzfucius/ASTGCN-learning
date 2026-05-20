@@ -18,6 +18,12 @@ def _split_output(output: Any) -> tuple[torch.Tensor, Any | None]:
     if isinstance(output, dict):
         pred = output.get("prediction", output.get("pred"))
         components = output.get("components")
+        if components is None:
+            components = {
+                key: value
+                for key, value in output.items()
+                if key not in {"prediction", "pred"}
+            }
         return pred, components
     if isinstance(output, (tuple, list)):
         pred = output[0]

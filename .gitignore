@@ -6,3 +6,7 @@ a.py
 src/astgcn.egg-info/
 .codegraph/
 .cursor/
+outputs/checkpoints/
+outputs/logs/
+outputs/predictions/
+outputs/figures/
