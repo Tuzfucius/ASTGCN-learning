@@ -7,7 +7,7 @@
 - `train.py`：训练 ASTGCN，并保存最优 checkpoint。
 - `infer.py`：加载 checkpoint，在测试集上评估并保存预测结果。
 - `compare_baselines.py`：统一比较 HA、SVR、LSTM、GRU、ASTGCN，输出指标表和图像。
-- `kaggle_astgcn_pems04_training.ipynb`：面向 Kaggle/Ubuntu 的训练与性能对比 notebook。
+- `kaggle_astgcn_pems04_training.ipynb`：面向 Kaggle/Ubuntu 的训练、性能对比与报告分析 notebook。
 
 ## 常用命令
 
@@ -26,4 +26,4 @@ python scripts\compare_baselines.py --config configs\pems04.yaml --epochs 1 --ma
 3. 打开 `kaggle_astgcn_pems04_training.ipynb`。
 4. 调试时保持 `RUN_MODE = "quick"`，正式实验时改为 `RUN_MODE = "full"`。
 
-notebook 会运行统一对比脚本，并展示指标表、柱状图和单节点预测曲线。
+notebook 会运行统一对比脚本，并展示指标表、柱状图、单节点预测曲线、稳定指标、相对提升率、分预测时长误差、节点级误差、高峰/非高峰误差、典型案例和推理流程 shape 表。
