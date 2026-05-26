@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+from astgcn.models.ablation import AblationConfig
 from astgcn.models.st_block import STBlock
 
 
@@ -27,8 +28,10 @@ class ASTGCNComponent(nn.Module):
         pred_len: int,
         cheb_polynomials,
         temporal_kernel_size: int = 3,
+        ablation_config: AblationConfig | None = None,
     ) -> None:
         super().__init__()
+        self.ablation_config = AblationConfig.from_dict(None) if ablation_config is None else ablation_config
         if num_blocks <= 0:
             raise ValueError("num_blocks 必须是正整数")
         self.num_blocks = num_blocks
@@ -49,6 +52,7 @@ class ASTGCNComponent(nn.Module):
                     num_timesteps=num_timesteps,
                     cheb_polynomials=cheb_polynomials,
                     temporal_kernel_size=temporal_kernel_size,
+                    ablation_config=self.ablation_config,
                 )
             )
             current_channels = hidden_channels

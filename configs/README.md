@@ -19,3 +19,12 @@
 ## 使用场景
 
 训练、推理、baseline 对比和 Kaggle notebook 都读取 `pems04.yaml`。在 Kaggle 中，notebook 会基于该配置生成临时配置，并自动修正数据路径。
+
+# configs 目录补充说明
+
+`pems04.yaml` 中的 `ablation` 字段用于配置消融实验，默认值保持完整 ASTGCN：
+
+- `use_recent`、`use_daily`、`use_weekly` 控制三类时间分支。
+- `use_temporal_attention`、`use_spatial_attention`、`use_graph_conv`、`use_temporal_conv` 控制 ST-Block 内部结构。
+- `graph_mode` 支持 `cheb`、`identity`、`random`、`none`。
+- `fusion_mode` 支持 `matrix`、`average`、`scalar`、`concat_mlp`。

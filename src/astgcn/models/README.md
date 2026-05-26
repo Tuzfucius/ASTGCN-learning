@@ -21,3 +21,12 @@ final output:        [B, N, T_p]
 ```
 
 `ASTGCN.forward(..., return_components=True)` 会返回 `prediction/recent/daily/weekly`，用于 notebook 和对比脚本可视化。
+
+## 消融配置
+
+`ablation.py` 提供 `AblationConfig`，用于统一管理消融实验开关：
+
+- 时间分支：`use_recent`、`use_daily`、`use_weekly`
+- ST-Block：`use_temporal_attention`、`use_spatial_attention`、`use_graph_conv`、`use_temporal_conv`
+- 图结构：`graph_mode` 支持 `cheb`、`identity`、`random`、`none`
+- 融合方式：`fusion_mode` 支持 `matrix`、`average`、`scalar`、`concat_mlp`

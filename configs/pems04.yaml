@@ -31,6 +31,17 @@ model:
   time_kernel_size: 3
   dropout: 0.0
 
+ablation:
+  use_recent: true
+  use_daily: true
+  use_weekly: true
+  use_temporal_attention: true
+  use_spatial_attention: true
+  use_graph_conv: true
+  use_temporal_conv: true
+  graph_mode: cheb
+  fusion_mode: matrix
+
 train:
   batch_size: 32
   epochs: 50

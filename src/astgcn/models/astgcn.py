@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+from astgcn.models.ablation import AblationConfig
 from astgcn.models.component import ASTGCNComponent
 from astgcn.models.fusion import FusionLayer
 
@@ -32,8 +33,15 @@ class ASTGCN(nn.Module):
         num_blocks: int = 2,
         hidden_channels: int = 64,
         temporal_kernel_size: int = 3,
+        ablation_config: AblationConfig | dict | None = None,
     ) -> None:
         super().__init__()
+        self.ablation_config = (
+            AblationConfig.from_dict(ablation_config)
+            if isinstance(ablation_config, dict) or ablation_config is None
+            else ablation_config
+        )
+        self.ablation_config.validate()
         daily_timesteps = recent_timesteps if daily_timesteps is None else daily_timesteps
         weekly_timesteps = recent_timesteps if weekly_timesteps is None else weekly_timesteps
 
@@ -52,20 +60,30 @@ class ASTGCN(nn.Module):
             "pred_len": pred_len,
             "cheb_polynomials": cheb_polynomials,
             "temporal_kernel_size": temporal_kernel_size,
+            "ablation_config": self.ablation_config,
         }
-        self.recent_component = ASTGCNComponent(
-            num_timesteps=recent_timesteps,
-            **component_kwargs,
+        self.components = nn.ModuleDict()
+        if self.ablation_config.use_recent:
+            self.components["recent"] = ASTGCNComponent(
+                num_timesteps=recent_timesteps,
+                **component_kwargs,
+            )
+        if self.ablation_config.use_daily:
+            self.components["daily"] = ASTGCNComponent(
+                num_timesteps=daily_timesteps,
+                **component_kwargs,
+            )
+        if self.ablation_config.use_weekly:
+            self.components["weekly"] = ASTGCNComponent(
+                num_timesteps=weekly_timesteps,
+                **component_kwargs,
+            )
+        self.fusion = FusionLayer(
+            num_nodes=num_nodes,
+            pred_len=pred_len,
+            branches=self.ablation_config.active_branches,
+            mode=self.ablation_config.fusion_mode,
         )
-        self.daily_component = ASTGCNComponent(
-            num_timesteps=daily_timesteps,
-            **component_kwargs,
-        )
-        self.weekly_component = ASTGCNComponent(
-            num_timesteps=weekly_timesteps,
-            **component_kwargs,
-        )
-        self.fusion = FusionLayer(num_nodes=num_nodes, pred_len=pred_len)
 
     def forward(
         self,
@@ -91,18 +109,19 @@ class ASTGCN(nn.Module):
                 daily: [B, N, pred_len]
                 weekly: [B, N, pred_len]
         """
-        y_h = self.recent_component(recent)
-        y_d = self.daily_component(daily)
-        y_w = self.weekly_component(weekly)
-        prediction = self.fusion(y_h, y_d, y_w)
+        inputs = {
+            "recent": recent,
+            "daily": daily,
+            "weekly": weekly,
+        }
+        component_outputs = {
+            name: component(inputs[name])
+            for name, component in self.components.items()
+        }
+        prediction = self.fusion(component_outputs)
 
         if return_components:
-            return {
-                "prediction": prediction,
-                "recent": y_h,
-                "daily": y_d,
-                "weekly": y_w,
-            }
+            return {"prediction": prediction, **component_outputs}
         return prediction
 
 

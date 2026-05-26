@@ -27,3 +27,9 @@ python scripts\compare_baselines.py --config configs\pems04.yaml --epochs 1 --ma
 4. 调试时保持 `RUN_MODE = "quick"`，正式实验时改为 `RUN_MODE = "full"`。
 
 notebook 会运行统一对比脚本，并展示指标表、柱状图、单节点预测曲线、稳定指标、相对提升率、分预测时长误差、节点级误差、高峰/非高峰误差、典型案例和推理流程 shape 表。
+
+# 消融实验 notebook
+
+- `ablation_cloud_training.ipynb`：面向 Kaggle、Colab 或其他云端环境的 ASTGCN 消融实验 notebook。它会读取 `configs/pems04.yaml`，批量覆盖 `ablation` 配置，完成训练、测试集评估、预测结果保存、指标柱状图和单节点预测曲线展示。
+- 调试时保持 `RUN_MODE = "quick"`；正式训练时改为 `RUN_MODE = "full"`。
+- 如果云端数据目录和项目默认路径不同，可设置环境变量 `DATA_ROOT`，其中应包含 `pems04.npz` 和 `distance.csv`。
