@@ -1,28 +1,27 @@
 # tests 目录说明
 
-本目录保存检查脚本和 pytest 测试。测试重点是验证数据 shape、模型前向、baseline 接口和脚本依赖是否稳定。
+本目录保存 `pytest` 测试用例和测试辅助配置，目标是把原先一次性执行的检查脚本改成可自动发现、可批量运行的测试套件。
 
-## 检查脚本
+## 测试组织
 
-- `check1_window_graph.py`：检查时间窗口和图构建基础逻辑。
-- `check2_graph.py`：检查图结构矩阵形状。
-- `check3_dataset.py`：检查 Dataset 输出。
-- `check4_io.py`：检查 `.npz` 数据读取。
-- `check5_real_dataset.py`：检查真实 PEMS04 数据集。
-- `check6_dataloader.py`：检查 DataLoader、切分和 scaler。
-- `check7_attention.py`：检查注意力模块输出形状。
+- `conftest.py`：提供公共 fixture，并把 `src/` 加入 `sys.path`，保证在仓库根目录直接运行 `pytest` 时可以正常导入 `astgcn`。
+- `test_window_graph.py`：覆盖时间窗口切片、`t0` 构造以及图结构构造。
+- `test_dataset.py`：覆盖 `ASTGCNDataset` 和 `DataLoader` 的基础批次形状。
+- `test_io.py`：覆盖 `pems04.npz` 读取。
+- `test_real_dataset.py`：覆盖真实 PEMS04 数据、`StandardScaler` 和时间切分逻辑。
+- `test_dataloader.py`：覆盖完整数据加载流水线。
+- `test_attention.py`：覆盖时间注意力和空间注意力模块。
+- `test_baselines.py`：覆盖基线模型输出形状和最小训练/预测流程。
+- `test_model_forward.py`：覆盖 ASTGCN 主模型前向输出。
 
-## pytest 测试
-
-- `test_model_forward.py`：验证 ASTGCN 三组件前向输出 `[B, N, T_p]`。
-- `test_baselines.py`：验证 HA、SVR、LSTM、GRU baseline shape 和最小训练预测。
-
-## 常用命令
+## 运行方式
 
 ```powershell
-python -m compileall -q src scripts tests
 python -m pytest tests -q
-python tests\check6_dataloader.py
+python -m pytest tests -q -m "not slow"
 ```
 
-ASTGCN 项目最常见的问题是维度顺序错误。先通过 shape 测试，再进入训练和性能对比。
+## 说明
+
+- 带 `slow` 标记的测试依赖较大的真实数据文件，适合本地或 CI 的完整回归。
+- 带 `integration` 标记的测试覆盖跨模块数据流，主要用于验证数据加载链路是否保持一致。
