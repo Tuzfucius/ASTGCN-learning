@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: astgcn-context-pack
+        name: ASTGCN context pack
+        entry: D:/Anaconda3/envs/low_numpy/python.exe scripts/context/update_context_pack.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
