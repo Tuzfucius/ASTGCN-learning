@@ -12,3 +12,4 @@ outputs/logs/
 outputs/predictions/
 outputs/figures/
 outputs/comparison/
+graph.ipynb
